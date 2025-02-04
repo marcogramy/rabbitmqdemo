@@ -20,8 +20,6 @@ import java.util.concurrent.Executors;
 @SpringBootApplication
 public class RabbitMqDemoApplication {
 
-    private CachingConnectionFactory connectionFactory;
-
     public static void main(String[] args) {
         SpringApplication.run(RabbitMqDemoApplication.class, args);
     }
@@ -91,7 +89,6 @@ public class RabbitMqDemoApplication {
 
     @Bean
     public RabbitTemplate rabbitTemplate(CachingConnectionFactory connectionFactory) {
-        this.connectionFactory = connectionFactory;
         RabbitTemplate rabbitTemplate = new RabbitTemplate(connectionFactory);
         rabbitTemplate.setMandatory(true);
         rabbitTemplate.setChannelTransacted(true);
@@ -108,9 +105,17 @@ public class RabbitMqDemoApplication {
         factory.setBatchSize(batchSize);
         factory.setAcknowledgeMode(AcknowledgeMode.AUTO);
         factory.setContainerCustomizer(c -> c.setShutdownTimeout(20 * 1000L)); // Milliseconds
+        factory.setMissingQueuesFatal(true);
+        factory.setMismatchedQueuesFatal(false);
+        factory.setDefaultRequeueRejected(false);
+
+        //TODO: set to false to avoid shutdown errors!
+        factory.setChannelTransacted(true);
+
         return factory;
     }
 
+    // PRODUCER
     @Bean
     public CommandLineRunner producerRunner(RabbitTemplate rabbitTemplate) {
         return args -> {
@@ -120,7 +125,7 @@ public class RabbitMqDemoApplication {
                     while (true) {
                         rabbitTemplate.convertAndSend(exchangeName, routingKey, "Test Message " + System.currentTimeMillis());
                         try {
-                            Thread.sleep(1); // 1000 messages per second per thread
+                            Thread.sleep(100L);
                         } catch (InterruptedException e) {
                             Thread.currentThread().interrupt();
                         }
@@ -130,8 +135,16 @@ public class RabbitMqDemoApplication {
         };
     }
 
+    // CONSUMER
     @RabbitListener(queues = "${rabbitmq.queue.name}")
     public void consumeMessage(String message) {
         System.out.println("Consumed: " + message);
+
+        // Add delay while processing message
+        try {
+            Thread.sleep(250L);
+        } catch (InterruptedException e) {
+            throw new RuntimeException(e);
+        }
     }
 }
