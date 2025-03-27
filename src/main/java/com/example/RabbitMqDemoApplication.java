@@ -7,12 +7,15 @@ import org.springframework.amqp.rabbit.connection.CachingConnectionFactory;
 import org.springframework.amqp.rabbit.connection.ConnectionFactory;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.amqp.rabbit.listener.RabbitListenerContainerFactory;
+import org.springframework.amqp.rabbit.listener.RabbitListenerEndpointRegistry;
 import org.springframework.amqp.rabbit.listener.SimpleMessageListenerContainer;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.event.ContextClosedEvent;
+import org.springframework.context.event.EventListener;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -108,11 +111,27 @@ public class RabbitMqDemoApplication {
         factory.setMissingQueuesFatal(true);
         factory.setMismatchedQueuesFatal(false);
         factory.setDefaultRequeueRejected(false);
-
-        //TODO: set to false to avoid shutdown errors!
         factory.setChannelTransacted(true);
-
         return factory;
+    }
+
+    // Shutdown hook
+    @EventListener
+    public void handleContextClosedEvent(ContextClosedEvent event) {
+        RabbitListenerEndpointRegistry rabbitListenerEndpointRegistry =
+                event.getApplicationContext().getBean(RabbitListenerEndpointRegistry.class);
+
+        // Stop RabbitMq listeners
+        rabbitListenerEndpointRegistry.getListenerContainerIds().forEach((id) -> {
+            SimpleMessageListenerContainer listener = (SimpleMessageListenerContainer)rabbitListenerEndpointRegistry.getListenerContainer(id);
+            System.out.printf("Shutting down %s with %d consumer/s%n", id, listener.getActiveConsumerCount());
+            listener.stop();
+        });
+
+        // Prevent "Rejecting received message" warning (see https://stackoverflow.com/questions/68995828/stop-rabbitmq-connection-in-spring-boot)
+        CachingConnectionFactory cachingConnectionFactory =
+                event.getApplicationContext().getBean(CachingConnectionFactory.class);
+        cachingConnectionFactory.resetConnection();
     }
 
     // PRODUCER
@@ -125,7 +144,7 @@ public class RabbitMqDemoApplication {
                     while (true) {
                         rabbitTemplate.convertAndSend(exchangeName, routingKey, "Test Message " + System.currentTimeMillis());
                         try {
-                            Thread.sleep(100L);
+                            Thread.sleep(200L);
                         } catch (InterruptedException e) {
                             Thread.currentThread().interrupt();
                         }
@@ -142,7 +161,7 @@ public class RabbitMqDemoApplication {
 
         // Add delay while processing message
         try {
-            Thread.sleep(250L);
+            Thread.sleep(500L);
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }
