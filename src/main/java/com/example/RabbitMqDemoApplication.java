@@ -17,6 +17,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.event.ContextClosedEvent;
 import org.springframework.context.event.EventListener;
 
+import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -156,12 +157,16 @@ public class RabbitMqDemoApplication {
 
     // CONSUMER
     @RabbitListener(queues = "${rabbitmq.queue.name}")
-    public void consumeMessage(String message) {
-        System.out.println("Consumed: " + message);
+    public void consumeMessage(Message message) {
+        String body = new String(message.getBody());
+        Map<String, Object> headers = message.getMessageProperties().getHeaders();
+        boolean redelivered = headers.containsKey("amqp_redelivered") && (Boolean) headers.get("amqp_redelivered");
+
+        System.out.println("Consumed: " + body + ", Redelivered: " + redelivered);
 
         // Add delay while processing message
         try {
-            Thread.sleep(500L);
+            Thread.sleep(400L);
         } catch (InterruptedException e) {
             throw new RuntimeException(e);
         }
