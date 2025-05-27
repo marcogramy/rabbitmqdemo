@@ -17,6 +17,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.event.ContextClosedEvent;
 import org.springframework.context.event.EventListener;
 
+import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -142,7 +143,7 @@ public class RabbitMqDemoApplication {
             for (int i = 0; i < producerThreads; i++) {
                 executorService.submit(() -> {
                     while (true) {
-                        rabbitTemplate.convertAndSend(exchangeName, routingKey, "Test Message " + System.currentTimeMillis());
+                        rabbitTemplate.convertAndSend(exchangeName, routingKey, UUID.randomUUID() + " " + System.currentTimeMillis());
                         try {
                             Thread.sleep(200L);
                         } catch (InterruptedException e) {
