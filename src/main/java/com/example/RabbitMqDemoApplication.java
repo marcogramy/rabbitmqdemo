@@ -96,6 +96,11 @@ public class RabbitMqDemoApplication {
         RabbitTemplate rabbitTemplate = new RabbitTemplate(connectionFactory);
         rabbitTemplate.setMandatory(true);
         rabbitTemplate.setChannelTransacted(true);
+
+        rabbitTemplate.setReturnsCallback(returnedMessage -> { // Log undeliverable message
+            System.out.println("Undelivered message returned from RabbitMq exchange: " + returnedMessage);
+        });
+
         return rabbitTemplate;
     }
 
